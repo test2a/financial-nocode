@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import Papa from 'papaparse'; // Import the PapaParse library
 
 // Function to generate reports based on the accounts data
 const generateReports = (accounts) => {
@@ -36,7 +37,7 @@ const generateReports = (accounts) => {
   };
 
   // Categorize the accounts and calculate totals
-  accounts.forEach(({ accountType, accountName, previousYearAmount, currentYearAmount }) => {
+  accounts.forEach(({ accountType, accountName, previousYearAmount, currentYearAmount, parentGroup }) => {
     if (accountType === 'income') {
       profitLoss.income.push({ accountName, currentYearAmount, previousYearAmount });
       profitLoss.revenue += parseFloat(currentYearAmount || 0);
@@ -51,26 +52,30 @@ const generateReports = (accounts) => {
     } else if (accountType === 'taxExpense') {
       profitLoss.taxExpense += parseFloat(currentYearAmount || 0);
       profitLoss.previousYearTaxExpense += parseFloat(previousYearAmount || 0);
-    } else if (accountType === 'asset' || accountType === 'nonCurrentAsset' || accountType === 'currentAsset') {
-      if (accountType === 'nonCurrentAsset') {
-        balanceSheet.nonCurrentAssets += parseFloat(currentYearAmount || 0);
-        balanceSheet.previousYearNonCurrentAssets += parseFloat(previousYearAmount || 0);
-      } else if (accountType === 'currentAsset') {
+    } else if (parentGroup === 'Current Assets') {
+      if (accountType === 'asset') {
         balanceSheet.currentAssets += parseFloat(currentYearAmount || 0);
         balanceSheet.previousYearCurrentAssets += parseFloat(previousYearAmount || 0);
       }
-    } else if (accountType === 'liability' || accountType === 'nonCurrentLiability' || accountType === 'currentLiability') {
-      if (accountType === 'nonCurrentLiability') {
+    } else if (parentGroup === 'Non-Current Assets') {
+      if (accountType === 'asset') {
+        balanceSheet.nonCurrentAssets += parseFloat(currentYearAmount || 0);
+        balanceSheet.previousYearNonCurrentAssets += parseFloat(previousYearAmount || 0);
+      }
+    } else if (parentGroup === 'Loans (Liability)') {
+      if (accountType === 'liability') {
         balanceSheet.nonCurrentLiabilities += parseFloat(currentYearAmount || 0);
         balanceSheet.previousYearNonCurrentLiabilities += parseFloat(previousYearAmount || 0);
-      } else if (accountType === 'currentLiability') {
+      }
+    } else if (parentGroup === 'Current Liabilities') {
+      if (accountType === 'liability') {
         balanceSheet.currentLiabilities += parseFloat(currentYearAmount || 0);
         balanceSheet.previousYearCurrentLiabilities += parseFloat(previousYearAmount || 0);
       }
-    } else if (accountType === 'capital') {
-      balanceSheet.capital += parseFloat(currentYearAmount || 0);
-    } else if (accountType === 'reserves') {
-      balanceSheet.reserves += parseFloat(currentYearAmount || 0);
+    } else if (parentGroup === 'Capital Account') {
+      if (accountType === 'capital') {
+        balanceSheet.capital += parseFloat(currentYearAmount || 0);
+      }
     }
   });
 
@@ -80,7 +85,47 @@ const generateReports = (accounts) => {
   profitLoss.netProfit = profitLoss.grossProfit - profitLoss.operatingExpenses - profitLoss.taxExpense;
   profitLoss.previousYearNetProfit = profitLoss.previousYearGrossProfit - profitLoss.previousYearOperatingExpenses - profitLoss.previousYearTaxExpense;
 
+  // Add net profit to capital/owner's equity
+  balanceSheet.capital += profitLoss.netProfit;
+
   return { profitLoss, balanceSheet };
+};
+
+// CSV Import Component
+const ImportCSV = ({ onImport }) => {
+  const [csvFile, setCsvFile] = useState(null);
+
+  const handleFileChange = (e) => {
+    setCsvFile(e.target.files[0]);
+  };
+
+  const handleImport = () => {
+    if (!csvFile) {
+      alert('Please select a file to import');
+      return;
+    }
+
+    Papa.parse(csvFile, {
+      complete: (result) => {
+        const accounts = result.data.map(row => ({
+          accountType: row[0],
+          accountName: row[1],
+          parentGroup: row[2],
+          previousYearAmount: parseFloat(row[3] || 0),
+          currentYearAmount: parseFloat(row[4] || 0),
+        }));
+        onImport(accounts); // Pass the imported data to the parent component
+      },
+      header: false,
+    });
+  };
+
+  return (
+    <div>
+      <input type="file" accept=".csv" onChange={handleFileChange} />
+      <button onClick={handleImport}>Import Accounts</button>
+    </div>
+  );
 };
 
 const FinancialReports = ({ initialAccounts = [] }) => {
@@ -90,6 +135,7 @@ const FinancialReports = ({ initialAccounts = [] }) => {
     accountName: '',
     currentYearAmount: 0,
     previousYearAmount: 0,
+    parentGroup: 'Current Assets', // Default parent group
   });
 
   const handleNewAccountChange = (e) => {
@@ -101,7 +147,7 @@ const FinancialReports = ({ initialAccounts = [] }) => {
   };
 
   const handleAddAccount = () => {
-    const { accountType, accountName, currentYearAmount, previousYearAmount } = newAccount;
+    const { accountType, accountName, currentYearAmount, previousYearAmount, parentGroup } = newAccount;
 
     if (!accountName) {
       alert('Account name is required');
@@ -113,6 +159,7 @@ const FinancialReports = ({ initialAccounts = [] }) => {
       accountName,
       currentYearAmount: parseFloat(currentYearAmount || 0),
       previousYearAmount: parseFloat(previousYearAmount || 0),
+      parentGroup,
     };
 
     setAccounts((prevAccounts) => [...prevAccounts, newAccountData]);
@@ -121,7 +168,12 @@ const FinancialReports = ({ initialAccounts = [] }) => {
       accountName: '',
       currentYearAmount: 0,
       previousYearAmount: 0,
+      parentGroup: 'Current Assets', // Reset to default group
     });
+  };
+
+  const handleCSVImport = (newAccounts) => {
+    setAccounts((prevAccounts) => [...prevAccounts, ...newAccounts]);
   };
 
   const { profitLoss, balanceSheet } = generateReports(accounts);
@@ -180,10 +232,9 @@ const FinancialReports = ({ initialAccounts = [] }) => {
           </tr>
         </thead>
         <tbody>
-          {/* Liabilities */}
           <tr>
             <td>Capital/Owner's Equity</td>
-            <td>{balanceSheet.capital}</td>
+            <td>{balanceSheet.capital - profitLoss.netProfit}</td>
             <td>{balanceSheet.capital}</td>
           </tr>
           <tr>
@@ -202,7 +253,6 @@ const FinancialReports = ({ initialAccounts = [] }) => {
             <td>{balanceSheet.nonCurrentLiabilities + balanceSheet.currentLiabilities}</td>
           </tr>
 
-          {/* Assets */}
           <tr>
             <td>Non-Current Assets</td>
             <td>{balanceSheet.previousYearNonCurrentAssets}</td>
@@ -253,6 +303,17 @@ const FinancialReports = ({ initialAccounts = [] }) => {
         </label>
 
         <label>
+          Parent Group:
+          <select name="parentGroup" value={newAccount.parentGroup} onChange={handleNewAccountChange}>
+            <option value="Current Assets">Current Assets</option>
+            <option value="Non-Current Assets">Non-Current Assets</option>
+            <option value="Loans (Liability)">Loans (Liability)</option>
+            <option value="Capital Account">Capital Account</option>
+            <option value="Current Liabilities">Current Liabilities</option>
+          </select>
+        </label>
+
+        <label>
           Previous Year Amount:
           <input
             type="number"
@@ -276,6 +337,9 @@ const FinancialReports = ({ initialAccounts = [] }) => {
 
         <button onClick={handleAddAccount}>Add Account</button>
       </div>
+
+      <h3>Import Accounts from CSV</h3>
+      <ImportCSV onImport={handleCSVImport} />
     </div>
   );
 };
