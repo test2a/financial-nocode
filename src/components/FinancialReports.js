@@ -1,62 +1,140 @@
-// src/components/FinancialReports.js
+import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 
-import React from 'react';
-
+// Function to generate reports based on the accounts data
 const generateReports = (accounts) => {
   const profitLoss = {
     income: [],
     expense: [],
-    previousYearIncome: 0,
-    currentYearIncome: 0,
-    previousYearExpense: 0,
-    currentYearExpense: 0,
+    revenue: 0,
+    previousYearRevenue: 0,
+    otherIncome: 0,
+    previousYearOtherIncome: 0,
+    cogs: 0,
+    previousYearCogs: 0,
+    operatingExpenses: 0,
+    previousYearOperatingExpenses: 0,
+    grossProfit: 0,
+    previousYearGrossProfit: 0,
+    netProfit: 0,
+    previousYearNetProfit: 0,
+    taxExpense: 0,
+    previousYearTaxExpense: 0,
   };
-  
+
   const balanceSheet = {
-    asset: [],
-    liability: [],
-    previousYearAssets: 0,
-    currentYearAssets: 0,
-    previousYearLiabilities: 0,
-    currentYearLiabilities: 0,
+    capital: 0,
+    reserves: 0,
+    currentAssets: 0,
+    previousYearCurrentAssets: 0,
+    nonCurrentAssets: 0,
+    previousYearNonCurrentAssets: 0,
+    currentLiabilities: 0,
+    previousYearCurrentLiabilities: 0,
+    nonCurrentLiabilities: 0,
+    previousYearNonCurrentLiabilities: 0,
   };
 
   // Categorize the accounts and calculate totals
   accounts.forEach(({ accountType, accountName, previousYearAmount, currentYearAmount }) => {
     if (accountType === 'income') {
-      profitLoss.income.push({ accountName, previousYearAmount, currentYearAmount });
-      profitLoss.previousYearIncome += parseFloat(previousYearAmount || 0);
-      profitLoss.currentYearIncome += parseFloat(currentYearAmount || 0);
+      profitLoss.income.push({ accountName, currentYearAmount, previousYearAmount });
+      profitLoss.revenue += parseFloat(currentYearAmount || 0);
+      profitLoss.previousYearRevenue += parseFloat(previousYearAmount || 0);
     } else if (accountType === 'expense') {
-      profitLoss.expense.push({ accountName, previousYearAmount, currentYearAmount });
-      profitLoss.previousYearExpense += parseFloat(previousYearAmount || 0);
-      profitLoss.currentYearExpense += parseFloat(currentYearAmount || 0);
-    } else if (accountType === 'asset') {
-      balanceSheet.asset.push({ accountName, previousYearAmount, currentYearAmount });
-      balanceSheet.previousYearAssets += parseFloat(previousYearAmount || 0);
-      balanceSheet.currentYearAssets += parseFloat(currentYearAmount || 0);
-    } else if (accountType === 'liability') {
-      balanceSheet.liability.push({ accountName, previousYearAmount, currentYearAmount });
-      balanceSheet.previousYearLiabilities += parseFloat(previousYearAmount || 0);
-      balanceSheet.currentYearLiabilities += parseFloat(currentYearAmount || 0);
+      profitLoss.expense.push({ accountName, currentYearAmount, previousYearAmount });
+      profitLoss.operatingExpenses += parseFloat(currentYearAmount || 0);
+      profitLoss.previousYearOperatingExpenses += parseFloat(previousYearAmount || 0);
+    } else if (accountType === 'costOfGoodsSold') {
+      profitLoss.cogs += parseFloat(currentYearAmount || 0);
+      profitLoss.previousYearCogs += parseFloat(previousYearAmount || 0);
+    } else if (accountType === 'taxExpense') {
+      profitLoss.taxExpense += parseFloat(currentYearAmount || 0);
+      profitLoss.previousYearTaxExpense += parseFloat(previousYearAmount || 0);
+    } else if (accountType === 'asset' || accountType === 'nonCurrentAsset' || accountType === 'currentAsset') {
+      if (accountType === 'nonCurrentAsset') {
+        balanceSheet.nonCurrentAssets += parseFloat(currentYearAmount || 0);
+        balanceSheet.previousYearNonCurrentAssets += parseFloat(previousYearAmount || 0);
+      } else if (accountType === 'currentAsset') {
+        balanceSheet.currentAssets += parseFloat(currentYearAmount || 0);
+        balanceSheet.previousYearCurrentAssets += parseFloat(previousYearAmount || 0);
+      }
+    } else if (accountType === 'liability' || accountType === 'nonCurrentLiability' || accountType === 'currentLiability') {
+      if (accountType === 'nonCurrentLiability') {
+        balanceSheet.nonCurrentLiabilities += parseFloat(currentYearAmount || 0);
+        balanceSheet.previousYearNonCurrentLiabilities += parseFloat(previousYearAmount || 0);
+      } else if (accountType === 'currentLiability') {
+        balanceSheet.currentLiabilities += parseFloat(currentYearAmount || 0);
+        balanceSheet.previousYearCurrentLiabilities += parseFloat(previousYearAmount || 0);
+      }
+    } else if (accountType === 'capital') {
+      balanceSheet.capital += parseFloat(currentYearAmount || 0);
+    } else if (accountType === 'reserves') {
+      balanceSheet.reserves += parseFloat(currentYearAmount || 0);
     }
   });
+
+  profitLoss.grossProfit = profitLoss.revenue - profitLoss.cogs;
+  profitLoss.previousYearGrossProfit = profitLoss.previousYearRevenue - profitLoss.previousYearCogs;
+
+  profitLoss.netProfit = profitLoss.grossProfit - profitLoss.operatingExpenses - profitLoss.taxExpense;
+  profitLoss.previousYearNetProfit = profitLoss.previousYearGrossProfit - profitLoss.previousYearOperatingExpenses - profitLoss.previousYearTaxExpense;
 
   return { profitLoss, balanceSheet };
 };
 
-const FinancialReports = ({ accounts }) => {
+const FinancialReports = ({ initialAccounts = [] }) => {
+  const [accounts, setAccounts] = useState(initialAccounts);
+  const [newAccount, setNewAccount] = useState({
+    accountType: 'income',
+    accountName: '',
+    currentYearAmount: 0,
+    previousYearAmount: 0,
+  });
+
+  const handleNewAccountChange = (e) => {
+    const { name, value } = e.target;
+    setNewAccount((prevState) => ({
+      ...prevState,
+      [name]: value,
+    }));
+  };
+
+  const handleAddAccount = () => {
+    const { accountType, accountName, currentYearAmount, previousYearAmount } = newAccount;
+
+    if (!accountName) {
+      alert('Account name is required');
+      return;
+    }
+
+    const newAccountData = {
+      accountType,
+      accountName,
+      currentYearAmount: parseFloat(currentYearAmount || 0),
+      previousYearAmount: parseFloat(previousYearAmount || 0),
+    };
+
+    setAccounts((prevAccounts) => [...prevAccounts, newAccountData]);
+    setNewAccount({
+      accountType: 'income',
+      accountName: '',
+      currentYearAmount: 0,
+      previousYearAmount: 0,
+    });
+  };
+
   const { profitLoss, balanceSheet } = generateReports(accounts);
 
   return (
     <div className="financial-reports">
-      <h3>Profit & Loss Statement</h3>
+      <h3>Profit & Loss Account for the Year Ended [Date]</h3>
       <table>
         <thead>
           <tr>
             <th>Account</th>
-            <th>Previous Year</th>
-            <th>Current Year</th>
+            <th>Previous Year (₹)</th>
+            <th>Current Year (₹)</th>
           </tr>
         </thead>
         <tbody>
@@ -76,60 +154,135 @@ const FinancialReports = ({ accounts }) => {
           ))}
           <tr>
             <td><strong>Total Income</strong></td>
-            <td>{profitLoss.previousYearIncome}</td>
-            <td>{profitLoss.currentYearIncome}</td>
+            <td>{profitLoss.previousYearRevenue}</td>
+            <td>{profitLoss.revenue}</td>
           </tr>
           <tr>
             <td><strong>Total Expenses</strong></td>
-            <td>{profitLoss.previousYearExpense}</td>
-            <td>{profitLoss.currentYearExpense}</td>
+            <td>{profitLoss.previousYearOperatingExpenses}</td>
+            <td>{profitLoss.operatingExpenses}</td>
           </tr>
           <tr>
             <td><strong>Net Profit</strong></td>
-            <td>{profitLoss.previousYearIncome - profitLoss.previousYearExpense}</td>
-            <td>{profitLoss.currentYearIncome - profitLoss.currentYearExpense}</td>
+            <td>{profitLoss.previousYearNetProfit}</td>
+            <td>{profitLoss.netProfit}</td>
           </tr>
         </tbody>
       </table>
 
-      <h3>Balance Sheet</h3>
+      <h3>Balance Sheet as of [Date]</h3>
       <table>
         <thead>
           <tr>
             <th>Account</th>
-            <th>Previous Year</th>
-            <th>Current Year</th>
+            <th>Previous Year (₹)</th>
+            <th>Current Year (₹)</th>
           </tr>
         </thead>
         <tbody>
-          {balanceSheet.asset.map((account, index) => (
-            <tr key={`asset-${index}`}>
-              <td>{account.accountName}</td>
-              <td>{account.previousYearAmount}</td>
-              <td>{account.currentYearAmount}</td>
-            </tr>
-          ))}
-          {balanceSheet.liability.map((account, index) => (
-            <tr key={`liability-${index}`}>
-              <td>{account.accountName}</td>
-              <td>{account.previousYearAmount}</td>
-              <td>{account.currentYearAmount}</td>
-            </tr>
-          ))}
+          {/* Liabilities */}
           <tr>
-            <td><strong>Total Assets</strong></td>
-            <td>{balanceSheet.previousYearAssets}</td>
-            <td>{balanceSheet.currentYearAssets}</td>
+            <td>Capital/Owner's Equity</td>
+            <td>{balanceSheet.capital}</td>
+            <td>{balanceSheet.capital}</td>
+          </tr>
+          <tr>
+            <td>Non-Current Liabilities</td>
+            <td>{balanceSheet.previousYearNonCurrentLiabilities}</td>
+            <td>{balanceSheet.nonCurrentLiabilities}</td>
+          </tr>
+          <tr>
+            <td>Current Liabilities</td>
+            <td>{balanceSheet.previousYearCurrentLiabilities}</td>
+            <td>{balanceSheet.currentLiabilities}</td>
           </tr>
           <tr>
             <td><strong>Total Liabilities</strong></td>
-            <td>{balanceSheet.previousYearLiabilities}</td>
-            <td>{balanceSheet.currentYearLiabilities}</td>
+            <td>{balanceSheet.previousYearNonCurrentLiabilities + balanceSheet.previousYearCurrentLiabilities}</td>
+            <td>{balanceSheet.nonCurrentLiabilities + balanceSheet.currentLiabilities}</td>
+          </tr>
+
+          {/* Assets */}
+          <tr>
+            <td>Non-Current Assets</td>
+            <td>{balanceSheet.previousYearNonCurrentAssets}</td>
+            <td>{balanceSheet.nonCurrentAssets}</td>
+          </tr>
+          <tr>
+            <td>Current Assets</td>
+            <td>{balanceSheet.previousYearCurrentAssets}</td>
+            <td>{balanceSheet.currentAssets}</td>
+          </tr>
+          <tr>
+            <td><strong>Total Assets</strong></td>
+            <td>{balanceSheet.previousYearNonCurrentAssets + balanceSheet.previousYearCurrentAssets}</td>
+            <td>{balanceSheet.nonCurrentAssets + balanceSheet.currentAssets}</td>
           </tr>
         </tbody>
       </table>
+
+      <h3>Add a New Account</h3>
+      <div>
+        <label>
+          Account Type:
+          <select name="accountType" value={newAccount.accountType} onChange={handleNewAccountChange}>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+            <option value="costOfGoodsSold">Cost of Goods Sold</option>
+            <option value="taxExpense">Tax Expense</option>
+            <option value="asset">Asset</option>
+            <option value="nonCurrentAsset">Non-Current Asset</option>
+            <option value="currentAsset">Current Asset</option>
+            <option value="liability">Liability</option>
+            <option value="nonCurrentLiability">Non-Current Liability</option>
+            <option value="currentLiability">Current Liability</option>
+            <option value="capital">Capital</option>
+            <option value="reserves">Reserves</option>
+          </select>
+        </label>
+
+        <label>
+          Account Name:
+          <input
+            type="text"
+            name="accountName"
+            value={newAccount.accountName}
+            onChange={handleNewAccountChange}
+            placeholder="Account Name"
+          />
+        </label>
+
+        <label>
+          Previous Year Amount:
+          <input
+            type="number"
+            name="previousYearAmount"
+            value={newAccount.previousYearAmount}
+            onChange={handleNewAccountChange}
+            placeholder="Previous Year Amount (₹)"
+          />
+        </label>
+
+        <label>
+          Current Year Amount:
+          <input
+            type="number"
+            name="currentYearAmount"
+            value={newAccount.currentYearAmount}
+            onChange={handleNewAccountChange}
+            placeholder="Current Year Amount (₹)"
+          />
+        </label>
+
+        <button onClick={handleAddAccount}>Add Account</button>
+      </div>
     </div>
   );
+};
+
+// Prop types to ensure correct data is passed
+FinancialReports.propTypes = {
+  initialAccounts: PropTypes.array,
 };
 
 export default FinancialReports;
